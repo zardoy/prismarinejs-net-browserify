@@ -293,7 +293,8 @@ Socket.prototype.connect = function(options, cb) {
 		hostname: getProxy().hostname,
 		port: getProxy().port,
 		path: getProxy().path + '/connect',
-		method: 'POST'
+		method: 'POST',
+		withCredentials: false
 	}, function (res) {
 		var json = '';
 		res.on('data', function (buf) {
