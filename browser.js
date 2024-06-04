@@ -5,12 +5,14 @@ var http = require('http');
 
 var debug = util.debuglog('net');
 
-var proxy = {
+var defaultProxy = {
 	protocol: (window.location.protocol == 'https:') ? 'wss' : 'ws',
+	requestProtocol: '',
 	hostname: window.location.hostname,
 	port: window.location.port,
 	path: '/api/vm/net'
 };
+var proxy = { ...defaultProxy }
 function getProxy() {
 	return proxy;
 }
@@ -22,16 +24,27 @@ function getProxyHost() {
 	return host;
 }
 function getProxyOrigin() {
+	if (getProxy().requestProtocol) {
+		proxy.protocol = getProxy().requestProtocol === 'https:' ? 'wss' : 'ws'
+	}
 	return getProxy().protocol + '://' + getProxyHost();
 }
 exports.setProxy = function (options) {
+	proxy = { ...defaultProxy }
 	options = options || {};
 
-	if (options.protocol) {
-		proxy.protocol = options.protocol;
-	}
-	if (options.hostname) {
-		proxy.hostname = options.hostname;
+	let { hostname } = options
+	if (hostname) {
+		let requestProtocol
+		if (hostname.startsWith('http://')) {
+			requestProtocol = 'http:';
+			hostname = hostname.slice(7);
+		} else if (hostname.startsWith('https://')) {
+			requestProtocol = 'https:';
+			hostname = hostname.slice(8);
+		}
+		proxy.requestProtocol = requestProtocol;
+		proxy.hostname = hostname;
 	}
 	if (options.port) {
 		proxy.port = options.port;
@@ -199,7 +212,7 @@ Socket.prototype.destroySoon = function() {
 
 Socket.prototype.destroy = function(exception) {
 	debug('destroy', exception);
-	
+
 	if (this.destroyed) {
 		return;
 	}
@@ -267,7 +280,7 @@ Socket.prototype.write = function(chunk, encoding, cb) {
 
 Socket.prototype.connect = function(options, cb) {
 	var self = this;
-	
+
 	if (!util.isObject(options)) {
 		// Old API:
 		// connect(port, [host], [cb])
@@ -293,6 +306,7 @@ Socket.prototype.connect = function(options, cb) {
 		hostname: getProxy().hostname,
 		port: getProxy().port,
 		path: getProxy().path + '/connect',
+		protocol: getProxy().requestProtocol,
 		method: 'POST',
 		withCredentials: false
 	}, function (res) {
@@ -311,8 +325,17 @@ Socket.prototype.connect = function(options, cb) {
 				};
 			}
 
-			if (data.error) {
-				self.emit('error', 'Cannot open TCP connection ['+res.statusCode+']: '+data.error);
+			if (data.error !== undefined) {
+				let errorMessage = 'Cannot open TCP connection ['+res.statusCode+']: '+JSON.stringify(data.error)
+				if (res.statusCode === 0) {
+					errorMessage = 'Cannot reach the proxy server'
+				} else if (res.statusCode === 404) {
+					errorMessage = 'Cannot find the proxy server (404). Check proxy ip you entered.'
+				}
+				if (data.error.code === 'ENOTFOUND') {
+					errorMessage = 'Cannot find the server. Check server ip you entered.'
+				}
+				self.emit('error', errorMessage);
 				self.destroy();
 				return;
 			}
@@ -375,6 +398,7 @@ Socket.prototype._handleWebsocket = function () {
 		console.warn('TCP error', e);
 		self.emit('error', 'An error occured with the WebSocket');
 	});
+	let reading = false
 	this._ws.addEventListener('message', function (e) {
 		var contents = e.data;
 
@@ -389,19 +413,32 @@ Socket.prototype._handleWebsocket = function () {
 			gotBuffer(buffer);
 		} else if (window.Blob && contents instanceof Blob) {
 			var fileReader = new FileReader();
+			let resolveReading
+			reading = new Promise((resolve) => {
+				resolveReading = resolve
+			})
+
 			fileReader.addEventListener('load', function (e) {
 				var buf = fileReader.result;
 				var arr = new Uint8Array(buf);
 				gotBuffer(new Buffer(arr));
+				resolveReading()
+				reading = false
+			});
+			fileReader.addEventListener('error', function (e) {
+				console.warn('Cannot read TCP stream: file reader error', e);
+				resolveReading()
+				reading = false
 			});
 			fileReader.readAsArrayBuffer(contents);
 		} else {
 			console.warn('Cannot read TCP stream: unsupported message type', contents);
 		}
 	});
-	this._ws.addEventListener('close', function () {
+	this._ws.addEventListener('close', async function () {
 		if (self.readyState == 'open') {
 			//console.log('TCP closed');
+			await reading
 			self.destroy();
 		}
 	});
