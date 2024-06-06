@@ -176,7 +176,8 @@ module.exports = function (options, connectionListener) {
 			// Providing a callback is important, otherwise errors can be thrown
 			ws.send(chunk, { binary: true }, function (err) {});
 		});
-		socket.on('end', function () {
+		socket.on('close', function () {
+			// todo let client know of errors somehow
 			myLog('TCP connection closed by remote ('+token+')');
 			ws.close();
 		});
