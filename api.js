@@ -163,6 +163,10 @@ module.exports = function (options, connectionListener) {
 		myLog('Forwarding socket with token '+token);
 
 		ws.on('message', function (data) {
+			if (typeof data === 'string' && data.startsWith('ping:')) {
+				ws.send('pong:' + data.slice('ping:'.length));
+				return
+			}
 			socket.write(data, 'binary', function () {
 				//myLog('Sent: ', data.toString());
 			});
