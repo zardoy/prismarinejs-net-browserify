@@ -134,6 +134,19 @@ module.exports = function (options, connectionListener) {
 				remote: remote
 			});
 		});
+		socket.setTimeout(options.timeout ?? 5000); // 5000 milliseconds = 5 seconds
+
+		// Handle the 'timeout' event
+		socket.on('timeout', function () {
+			myLog('Socket timed out');
+			if (!res.finished) {
+				res.status(504).send({
+					code: 504,
+					error: `Socket timed out. Ensure the server ${host} is reachable and the port ${port} is open.`
+				});
+			}
+			socket.end(); // End the connection
+		});
 		socket.on('error', function (err) {
 			if (res.finished) {
 				myLog("Socket error after response closed: "+err);
