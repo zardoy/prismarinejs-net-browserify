@@ -103,6 +103,10 @@ module.exports = function (options, connectionListener) {
 			host: host,
 			port: port
 		}, function (err) {
+			if (res.finished) {
+				myLog("Socket connected after response closed");
+				return
+			}
 			if (err) {
 				res.status(500).send({
 					code: 500,
