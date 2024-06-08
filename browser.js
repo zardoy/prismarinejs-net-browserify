@@ -409,6 +409,10 @@ Socket.prototype._handleWebsocket = function () {
 		};
 
 		if (typeof contents == 'string') {
+			if (contents.startsWith('pong:')) {
+				self.emit('pong', contents.slice('pong:'.length));
+				return
+			}
 			var buffer = new Buffer(contents);
 			gotBuffer(buffer);
 		} else if (window.Blob && contents instanceof Blob) {

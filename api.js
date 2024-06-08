@@ -103,6 +103,10 @@ module.exports = function (options, connectionListener) {
 			host: host,
 			port: port
 		}, function (err) {
+			if (res.finished) {
+				myLog("Socket connected after response closed");
+				return
+			}
 			if (err) {
 				res.status(500).send({
 					code: 500,
@@ -129,6 +133,19 @@ module.exports = function (options, connectionListener) {
 				token: token,
 				remote: remote
 			});
+		});
+		socket.setTimeout(options.timeout ?? 5000); // 5000 milliseconds = 5 seconds
+
+		// Handle the 'timeout' event
+		socket.on('timeout', function () {
+			myLog('Socket timed out');
+			if (!res.finished) {
+				res.status(504).send({
+					code: 504,
+					error: `Socket timed out. Ensure the server ${host} is reachable and the port ${port} is open.`
+				});
+			}
+			socket.end(); // End the connection
 		});
 		socket.on('error', function (err) {
 			if (res.finished) {
@@ -163,6 +180,10 @@ module.exports = function (options, connectionListener) {
 		myLog('Forwarding socket with token '+token);
 
 		ws.on('message', function (data) {
+			if (typeof data === 'string' && data.startsWith('ping:')) {
+				ws.send('pong:' + data.slice('ping:'.length));
+				return
+			}
 			socket.write(data, 'binary', function () {
 				//myLog('Sent: ', data.toString());
 			});
@@ -172,7 +193,8 @@ module.exports = function (options, connectionListener) {
 			// Providing a callback is important, otherwise errors can be thrown
 			ws.send(chunk, { binary: true }, function (err) {});
 		});
-		socket.on('end', function () {
+		socket.on('close', function () {
+			// todo let client know of errors somehow
 			myLog('TCP connection closed by remote ('+token+')');
 			ws.close();
 		});
