@@ -302,6 +302,7 @@ Socket.prototype.connect = function(options, cb) {
 	self.writable = true;
 	self._host = options.host;
 
+	let timedOut = false
 	var req = http.request({
 		hostname: getProxy().hostname,
 		port: getProxy().port,
@@ -310,6 +311,8 @@ Socket.prototype.connect = function(options, cb) {
 		method: 'POST',
 		withCredentials: false
 	}, function (res) {
+		if (timedOut) return
+
 		var json = '';
 		res.on('data', function (buf) {
 			json += buf;
@@ -328,7 +331,7 @@ Socket.prototype.connect = function(options, cb) {
 			if (data.error !== undefined) {
 				let errorMessage = 'Cannot open TCP connection ['+res.statusCode+']: '+JSON.stringify(data.error)
 				if (res.statusCode === 0) {
-					errorMessage = 'Cannot reach the proxy server'
+					errorMessage = `Cannot reach the proxy server ${getProxy().hostname}:${getProxy().port}`
 				} else if (res.statusCode === 404) {
 					errorMessage = 'Cannot find the proxy server (404). Check proxy ip you entered.'
 				}
@@ -353,7 +356,15 @@ Socket.prototype.connect = function(options, cb) {
 				cb();
 			});
 		});
- 	});
+	});
+	setTimeout(() => {
+		if (!timedOut) {
+			timedOut = true
+			req.xhr.abort()
+			self.emit('error', `Timeout for connecting to proxy ${getProxy().hostname}:${getProxy().port}. Make it is reachable.`)
+			self.destroy()
+		}
+	}, 10_000)
 
 	req.setHeader('Content-Type', 'application/json');
 	req.write(JSON.stringify(options));
