@@ -303,6 +303,7 @@ Socket.prototype.connect = function(options, cb) {
 	self._host = options.host;
 
 	let timedOut = false
+	let timeout
 	var req = http.request({
 		hostname: getProxy().hostname,
 		port: getProxy().port,
@@ -312,6 +313,7 @@ Socket.prototype.connect = function(options, cb) {
 		withCredentials: false
 	}, function (res) {
 		if (timedOut) return
+		clearTimeout(timeout)
 
 		var json = '';
 		res.on('data', function (buf) {
@@ -357,7 +359,7 @@ Socket.prototype.connect = function(options, cb) {
 			});
 		});
 	});
-	setTimeout(() => {
+	timeout = setTimeout(() => {
 		if (!timedOut) {
 			timedOut = true
 			req.xhr.abort()
