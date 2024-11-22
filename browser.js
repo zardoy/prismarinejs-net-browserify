@@ -363,7 +363,7 @@ Socket.prototype.connect = function(options, cb) {
 		if (!timedOut) {
 			timedOut = true
 			req.xhr.abort()
-			self.emit('error', `Timeout for connecting to proxy ${getProxy().hostname}:${getProxy().port}. Make it is reachable.`)
+			self.emit('error', `Timeout for connecting to proxy ${getProxy().hostname}:${getProxy().port}. Make sure it is reachable: try opening it in your browser or use alternative proxy server.`)
 			self.destroy()
 		}
 	}, 10_000)
