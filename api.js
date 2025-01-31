@@ -38,6 +38,9 @@ module.exports = function (options, connectionListener) {
 		? console.log
 		: function() {}
 
+	const artificialDelay = options.artificialDelay || 0;
+	const maxPacketsPerSecond = options.maxPacketsPerSecond || 0;
+
 	var app = express();
 	var jsonParser = bodyParser.json();
 	var urlRoot = options.urlRoot || '/api/vm/net';
@@ -179,20 +182,66 @@ module.exports = function (options, connectionListener) {
 
 		myLog('Forwarding socket with token '+token);
 
+		// Packet rate monitoring
+		let packetsLastSecond = { fromClient: 0, fromServer: 0 };
+		let lastCheck = Date.now();
+
+		function checkPacketRate() {
+			const now = Date.now();
+			const elapsed = now - lastCheck;
+			if (elapsed >= 1000 && maxPacketsPerSecond > 0) {
+				const clientRate = (packetsLastSecond.fromClient * 1000) / elapsed;
+				const serverRate = (packetsLastSecond.fromServer * 1000) / elapsed;
+
+				if (clientRate > maxPacketsPerSecond) {
+					myLog(`Warning: Client->Server packet rate (${Math.round(clientRate)}/s) exceeds limit of ${maxPacketsPerSecond}/s`);
+				}
+				if (serverRate > maxPacketsPerSecond) {
+					myLog(`Warning: Server->Client packet rate (${Math.round(serverRate)}/s) exceeds limit of ${maxPacketsPerSecond}/s`);
+				}
+
+				packetsLastSecond.fromClient = 0;
+				packetsLastSecond.fromServer = 0;
+				lastCheck = now;
+			}
+		}
+
 		ws.on('message', function (data) {
 			if (typeof data === 'string' && data.startsWith('ping:')) {
 				ws.send('pong:' + data.slice('ping:'.length));
-				return
+				return;
 			}
-			socket.write(data, 'binary', function () {
-				//myLog('Sent: ', data.toString());
-			});
+
+			packetsLastSecond.fromClient++;
+			checkPacketRate();
+
+			if (artificialDelay > 0) {
+				setTimeout(() => {
+					socket.write(data, 'binary', function () {
+						//myLog('Sent: ', data.toString());
+					});
+				}, artificialDelay);
+			} else {
+				socket.write(data, 'binary', function () {
+					//myLog('Sent: ', data.toString());
+				});
+			}
 		});
+
 		socket.on('data', function (chunk) {
 			//myLog('Received: ', chunk.toString());
-			// Providing a callback is important, otherwise errors can be thrown
-			ws.send(chunk, { binary: true }, function (err) {});
+			packetsLastSecond.fromServer++;
+			checkPacketRate();
+
+			if (artificialDelay > 0) {
+				setTimeout(() => {
+					ws.send(chunk, { binary: true }, function (err) {});
+				}, artificialDelay);
+			} else {
+				ws.send(chunk, { binary: true }, function (err) {});
+			}
 		});
+
 		socket.on('close', function () {
 			// todo let client know of errors somehow
 			myLog('TCP connection closed by remote ('+token+')');
