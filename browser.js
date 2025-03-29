@@ -380,6 +380,10 @@ Socket.prototype._connectWebSocket = function (token, cb) {
 	}
 };
 
+Socket.prototype.handleStringMessage = function (message) {
+	return true
+}
+
 Socket.prototype._handleWebsocket = function () {
 	var self = this;
 
@@ -413,8 +417,10 @@ Socket.prototype._handleWebsocket = function () {
 				self.emit('pong', contents.slice('pong:'.length));
 				return
 			}
-			var buffer = new Buffer(contents);
-			gotBuffer(buffer);
+			if (self.handleStringMessage(contents)) {
+				var buffer = new Buffer(contents);
+				gotBuffer(buffer);
+			}
 		} else if (window.Blob && contents instanceof Blob) {
 			var fileReader = new FileReader();
 			let resolveReading

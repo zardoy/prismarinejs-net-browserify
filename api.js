@@ -50,6 +50,24 @@ module.exports = function (options, connectionListener) {
 	}
 
 	var sockets = {};
+	var wsConnections = {};
+
+	function handleTermination() {
+		console.debug('Cleaning up...');
+		// Send termination message to all active WebSocket connections
+		Object.values(wsConnections).forEach(ws => {
+			try {
+				ws.send('proxy-shutdown:Proxy server is shutting down. Most probably it is being restarted so try to reconnect.');
+				ws.close();
+			} catch (err) {
+				console.error('Error sending termination message:', err);
+			}
+		});
+		process.exit(0);
+	}
+
+	process.on('SIGINT', handleTermination);
+	process.on('SIGTERM', handleTermination);
 
 	if (options.allowOrigin) {
 		var allowOrigin = options.allowOrigin;
@@ -175,7 +193,7 @@ module.exports = function (options, connectionListener) {
 		}
 
 		var socket = sockets[token];
-		//delete sockets[token];
+		wsConnections[token] = ws; // Track WebSocket connection
 
 		myLog('Forwarding socket with token '+token);
 
@@ -197,10 +215,12 @@ module.exports = function (options, connectionListener) {
 			// todo let client know of errors somehow
 			myLog('TCP connection closed by remote ('+token+')');
 			ws.close();
+			delete wsConnections[token]; // Clean up WebSocket connection
 		});
 		ws.on('close', function () {
 			socket.end();
 			myLog('Websocket connection closed ('+token+')');
+			delete wsConnections[token]; // Clean up WebSocket connection
 		});
 	});
 
