@@ -60,7 +60,7 @@ module.exports = function (options, connectionListener) {
 		// Send termination message to all active WebSocket connections
 		Object.values(wsConnections).forEach(ws => {
 			try {
-				ws.send('proxy-shutdown:Proxy server is shutting down. Most probably it is being restarted so try to reconnect.');
+				ws.send('proxy-shutdown:Proxy server is shutting down. Most probably it is being restarted so try to reconnect.', () => {});
 				ws.close();
 			} catch (err) {
 				console.error('Error sending termination message:', err);
@@ -227,8 +227,8 @@ module.exports = function (options, connectionListener) {
 
 		ws.on('message', function (data) {
 			if (typeof data === 'string' && data.startsWith('ping:')) {
-				ws.send('pong:' + data.slice('ping:'.length));
-				return;
+				ws.send('pong:' + data.slice('ping:'.length), () => {});
+				return
 			}
 
 			packetsLastSecond.fromClient++;
@@ -264,7 +264,7 @@ module.exports = function (options, connectionListener) {
 		let reasonSent = false;
 		socket.on('timeout', function () {
 			if (!reasonSent) {
-				ws.send('proxy-shutdown:Connection timed out. No packets were sent or received from either side in '+timeout+'ms.');
+				ws.send('proxy-shutdown:Connection timed out. No packets were sent or received from either side in '+timeout+'ms.', () => {});
 				reasonSent = true;
 			}
 		});
@@ -272,7 +272,7 @@ module.exports = function (options, connectionListener) {
 		socket.on('error', function (err) {
 			if (!reasonSent) {
 				const message = err.code === 'EADDRNOTAVAIL' ? 'Minecraft server is not reachable anymore.' : 'Issue with the connection to the Minecraft server: '+err.message;
-				ws.send('proxy-shutdown:'+message);
+				ws.send('proxy-shutdown:'+message, () => {});
 				reasonSent = true;
 			}
 		});
@@ -281,7 +281,7 @@ module.exports = function (options, connectionListener) {
 			// todo let client know of errors somehow
 			myLog('TCP connection closed by remote ('+token+')');
 			if (!reasonSent) {
-				ws.send('proxy-shutdown:Minecraft server closed the connection.');
+				ws.send('proxy-shutdown:Minecraft server closed the connection.', () => {});
 			}
 			ws.close();
 			delete wsConnections[token]; // Clean up WebSocket connection
