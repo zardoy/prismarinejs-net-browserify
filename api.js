@@ -111,6 +111,18 @@ module.exports = function (options, connectionListener) {
 			});
 			return;
 		}
+		if (options.validate) {
+			if (!options.validate(req)) {
+				if (!res.finished) {
+					res.status(403).send({
+						code: 403,
+						error: 'You are not allowed to connect to this server'
+					});
+				}
+				return;
+			}
+		}
+
 		if (options.to) {
 			if (!checkTo(options.to, { host: host, port: port })) {
 				res.status(403).send({
