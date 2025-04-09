@@ -112,11 +112,22 @@ module.exports = function (options, connectionListener) {
 			return;
 		}
 		if (options.validate) {
-			if (!options.validate(req)) {
-				if (!res.finished) {
-					res.status(403).send({
-						code: 403,
-						error: 'You are not allowed to connect to this server'
+			try {
+				if (!options.validate(req, res)) {
+					if (!res.finished) {
+						res.status(403).send({
+							code: 403,
+							error: 'You are not allowed to connect to this server'
+						});
+					}
+					return;
+				}
+			} catch (err) {
+				console.error('Error validating request:', err);
+				if (!res.headersSent) {
+					res.status(500).send({
+						code: 500,
+						error: 'Internal server error at validation step'
 					});
 				}
 				return;
