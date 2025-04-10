@@ -10,7 +10,8 @@ var defaultProxy = {
 	requestProtocol: '',
 	hostname: window.location.hostname,
 	port: window.location.port,
-	path: '/api/vm/net'
+	path: '/api/vm/net',
+	headers: {}
 };
 var proxy = { ...defaultProxy }
 function getProxy() {
@@ -51,6 +52,9 @@ exports.setProxy = function (options) {
 	}
 	if (options.path) {
 		proxy.path = options.path;
+	}
+	if (options.headers) {
+		proxy.headers = options.headers;
 	}
 };
 
@@ -310,7 +314,11 @@ Socket.prototype.connect = function(options, cb) {
 		path: getProxy().path + '/connect',
 		protocol: getProxy().requestProtocol,
 		method: 'POST',
-		withCredentials: false
+		withCredentials: false,
+		headers: {
+			'Content-Type': 'application/json',
+			...getProxy().headers
+		}
 	}, function (res) {
 		if (timedOut) return
 		clearTimeout(timeout)
@@ -369,6 +377,10 @@ Socket.prototype.connect = function(options, cb) {
 	}, 10_000)
 
 	req.setHeader('Content-Type', 'application/json');
+	// Set additional headers from proxy configuration
+	Object.entries(getProxy().headers).forEach(([key, value]) => {
+		req.setHeader(key, value);
+	});
 	req.write(JSON.stringify(options));
 	req.end();
 
