@@ -100,7 +100,7 @@ module.exports = function (options, connectionListener) {
 	}
 
 	const timeout = options.timeout ?? 5000
-	app.post(urlRoot + '/connect', jsonParser, function (req, res) {
+	app.post(urlRoot + '/connect', jsonParser, async function (req, res) {
 		var host = req.body.host,
 			port = req.body.port;
 
@@ -113,7 +113,7 @@ module.exports = function (options, connectionListener) {
 		}
 		if (options.validate) {
 			try {
-				if (!options.validate(req, res)) {
+				if (!(await options.validate(req, res))) {
 					if (!res.finished) {
 						res.status(403).send({
 							code: 403,
