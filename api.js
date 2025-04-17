@@ -99,7 +99,8 @@ module.exports = function (options, connectionListener) {
 		}
 	}
 
-	const timeout = options.timeout ?? 5000
+	const socketConnectTimeout = options.connectTimeout ?? options.timeout ?? 5000
+	const connectionTimeout = options.connectionTimeout ?? options.timeout ?? 5000
 	app.post(urlRoot + '/connect', jsonParser, async function (req, res) {
 		var host = req.body.host,
 			port = req.body.port;
@@ -146,7 +147,8 @@ module.exports = function (options, connectionListener) {
 
 		var socket = net.connect({
 			host: host,
-			port: port
+			port: port,
+			timeout: socketConnectTimeout
 		}, function (err) {
 			if (res.finished) {
 				myLog("Socket connected after response closed");
@@ -179,11 +181,11 @@ module.exports = function (options, connectionListener) {
 				remote: remote
 			});
 		});
-		socket.setTimeout(timeout); // 5000 milliseconds = 5 seconds
 
+		let start = Date.now()
 		// Handle the 'timeout' event
 		socket.on('timeout', function () {
-			myLog('Socket timed out');
+			myLog('Socket timed out after '+((Date.now() - start)/1000)+' seconds');
 			if (!res.finished) {
 				res.status(504).send({
 					code: 504,
@@ -220,6 +222,7 @@ module.exports = function (options, connectionListener) {
 		}
 
 		var socket = sockets[token];
+		socket.setTimeout(connectionTimeout);
 		wsConnections[token] = ws; // Track WebSocket connection
 
 		myLog('Forwarding socket with token '+token);
@@ -287,7 +290,7 @@ module.exports = function (options, connectionListener) {
 		let reasonSent = false;
 		socket.on('timeout', function () {
 			if (!reasonSent) {
-				ws.send('proxy-shutdown:Connection timed out. No packets were sent or received from either side in '+timeout+'ms.', () => {});
+				ws.send('proxy-shutdown:Connection timed out. No packets were sent or received from either side in '+connectionTimeout+'ms.', () => {});
 				reasonSent = true;
 			}
 		});
