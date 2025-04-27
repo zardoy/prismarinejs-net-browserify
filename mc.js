@@ -5,7 +5,7 @@ const path = require('path');
 const workers = new Map();
 const SHUTDOWN_TIMEOUT = 5000; // 5 seconds timeout for graceful shutdown
 
-module.exports.handleNewConnection = (/** @type {string} */version, /** @type {string} */id = Math.random().toString(36).substring(7)) => {
+module.exports.handleNewConnection = (/** @type {string} */version, /** @type {string} */id = Math.random().toString(36).substring(7), /** @type {any} */meta) => {
     const worker = new Worker(path.join(__dirname, 'worker.js'));
     workers.set(id, worker);
 
@@ -39,7 +39,8 @@ module.exports.handleNewConnection = (/** @type {string} */version, /** @type {s
     worker.postMessage({
         type: 'create_connection',
         id,
-        version
+        version,
+        meta
     });
 
     return {

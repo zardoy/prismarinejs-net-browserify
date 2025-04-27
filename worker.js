@@ -23,13 +23,13 @@ class CustomDuplex extends Duplex {
     }
 }
 
-/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string }>} */
+/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined }>} */
 const connections = new Map();
 
 parentPort.on('message', (message) => {
     switch (message.type) {
         case 'create_connection':
-            handleCreateConnection(message.id, message.version);
+            handleCreateConnection(message.id, message.version, message.meta);
             break;
         case 'push_from_server':
             handlePushFromServer(message.id, message.packet);
@@ -54,7 +54,9 @@ parentPort.on('message', (message) => {
     }
 });
 
-function handleCreateConnection(id, version) {
+function handleCreateConnection(id, version, meta) {
+    let firstClientMessage
+
     const duplexFromServer = new CustomDuplex({}, (chunk) => {
     });
     /** @type {any} */
@@ -101,6 +103,7 @@ function handleCreateConnection(id, version) {
     });
 
     serverClient.on('packet', (data, packetMeta, buffer, fullBuffer) => {
+        firstClientMessage ??= Date.now()
         const connection = connections.get(id);
         if (connection) {
             logPacket(connection, false, packetMeta, data);
@@ -115,7 +118,10 @@ function handleCreateConnection(id, version) {
         serverClient,
         duplexToServer,
         packets: [],
-        log: `{"minecraftVersion":"${version}"}\n# Connection id: ${id}\n`,
+        log: `{"minecraftVersion":"${version}"}\n# Connection id: ${id}. Started at: ${new Date().toISOString()}. User agent: ${meta.userAgent}\n`,
+        get firstClientMessage() {
+            return firstClientMessage
+        }
     });
 }
 
@@ -184,7 +190,9 @@ async function handleEndConnection(id) {
         const logsDir = path.join(process.cwd(), 'logs');
         fs.mkdirSync(logsDir, { recursive: true });
 
-        const filename = `${id}-${connection.client.username}`;
+        const elapsedSeconds = ((Date.now() - connection.firstClientMessage) / 1000).toFixed(0)
+
+        const filename = `${id}-${connection.client.username}-${elapsedSeconds}s`;
 
         const logFile = path.join(logsDir, `${filename}.txt`);
         fs.writeFileSync(logFile, connection.log);
@@ -194,7 +202,7 @@ async function handleEndConnection(id) {
         const compressed = zlib.gzipSync(connection.log);
         fs.writeFileSync(compressedFile, compressed);
 
-        const LOGS_LIMIT = 50
+        const LOGS_LIMIT = 12
         const files = fs.readdirSync(logsDir);
         if (files.length > LOGS_LIMIT) {
             const sortedByDate = files.sort((a, b) => {

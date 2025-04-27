@@ -187,7 +187,8 @@ module.exports = function (options, connectionListener) {
 		if (req.headers['x-connection-id']) {
 			const { onDataFromServer, onDataToServer, end, log, onChannelRegister } = handleNewConnection(
 				req.headers['x-minecraft-version'] ?? '1.21.4',
-				req.headers['x-connection-id']
+				req.headers['x-connection-id'],
+				req.headers['user-agent']
 			)
 
 			socket.on('data', (chunk) => {
