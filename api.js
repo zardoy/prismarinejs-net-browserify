@@ -320,7 +320,7 @@ module.exports = function (options, connectionListener) {
 					ws.send(chunk, { binary: true }, function (err) {});
 				}, artificialDelay);
 			} else {
-				if (ws.readyState !== WebSocket.OPEN) {
+				if (ws.readyState !== 1) {
 					// console.log('Wrong readyState!', ws.readyState)
 					socket.logWorker?.('Wrong readyState!', ws.readyState)
 				}
