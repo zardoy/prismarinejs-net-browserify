@@ -215,7 +215,7 @@ async function handleEndConnection(id) {
         const compressed = zlib.gzipSync(connection.log);
         fs.writeFileSync(compressedFile, compressed);
 
-        const LOGS_LIMIT = 12
+        const LOGS_LIMIT = 20
         const files = fs.readdirSync(logsDir);
         if (files.length > LOGS_LIMIT) {
             const sortedByDate = files.sort((a, b) => {
