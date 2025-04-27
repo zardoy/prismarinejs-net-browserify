@@ -23,7 +23,7 @@ class CustomDuplex extends Duplex {
     }
 }
 
-/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined }>} */
+/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined, truncated: boolean }>} */
 const connections = new Map();
 
 parentPort.on('message', (message) => {
@@ -121,7 +121,8 @@ function handleCreateConnection(id, version, meta) {
         log: `{"minecraftVersion":"${version}"}\n# Connection id: ${id}. Started at: ${new Date().toISOString()}. User agent: ${meta.userAgent}\n`,
         get firstClientMessage() {
             return firstClientMessage
-        }
+        },
+        truncated: false
     });
 }
 
@@ -148,10 +149,16 @@ function handlePushFromClient(id, packet) {
     }
 }
 
+const MAX_LOG_SIZE_MB = 1000
+
 const logPacket = (connection, isServer, { name }, params) => {
     const client = isServer ? connection.serverClient : connection.client;
     const string = `${isServer ? 'S' : 'C'} ${client.state}:${name} ${Date.now()} ${JSON.stringify(params)}\n`;
     connection.log += string;
+    if (connection.log.length > MAX_LOG_SIZE_MB * 1024 * 1024) {
+        connection.truncated = true;
+        connection.log = connection.log.slice(0, 10_000)+'...\n'+connection.log.slice(-MAX_LOG_SIZE_MB * 1024 * 1024 + 15_000);
+    }
 }
 
 function handleLog(id, message) {
@@ -191,11 +198,17 @@ async function handleEndConnection(id) {
         fs.mkdirSync(logsDir, { recursive: true });
 
         const elapsedSeconds = ((Date.now() - connection.firstClientMessage) / 1000).toFixed(0)
+        const uncompressedSizeMb = (connection.log.length / 1024 / 1024).toFixed(2)
 
-        const filename = `${id}-${connection.client.username}-${elapsedSeconds}s`;
+        let filename = `${id}-${connection.client.username}-${elapsedSeconds}s-${uncompressedSizeMb}mb`;
+        if (connection.truncated) {
+            filename += '-truncated';
+        }
 
-        const logFile = path.join(logsDir, `${filename}.txt`);
-        fs.writeFileSync(logFile, connection.log);
+        if (process.env.NODE_ENV !== 'production') {
+            const logFile = path.join(logsDir, `${filename}.txt`);
+            fs.writeFileSync(logFile, connection.log);
+        }
 
         // Write compressed log file
         const compressedFile = path.join(logsDir, `${filename}.gz`);
