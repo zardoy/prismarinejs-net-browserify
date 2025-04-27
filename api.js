@@ -5,6 +5,8 @@ var express = require('express');
 var expressWs = require('express-ws');
 var bodyParser = require('body-parser');
 
+const { handleNewConnection } = require('./mc.js')
+
 function generateToken() {
 	return crypto.randomBytes(32).toString('hex');
 }
@@ -90,7 +92,7 @@ module.exports = function (options, connectionListener) {
 
 				if (req.method.toUpperCase() == 'OPTIONS') { // Preflighted requests
 					res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-					res.header('Access-Control-Allow-Headers', 'Content-Type');
+					res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-connection-id, x-minecraft-version');
 
 					res.header('Access-Control-Max-Age', 1728000); // Access-Control headers cached for 20 days
 				}
@@ -182,6 +184,31 @@ module.exports = function (options, connectionListener) {
 			});
 		});
 
+		if (req.headers['x-connection-id']) {
+			const { onDataFromServer, onDataToServer, end, log, onChannelRegister } = handleNewConnection(
+				req.headers['x-minecraft-version'] ?? '1.21.4',
+				req.headers['x-connection-id']
+			)
+
+			socket.on('data', (chunk) => {
+				onDataFromServer(chunk)
+			})
+			const oldWrite = socket.write.bind(socket)
+			socket.write = (...args) => {
+				onDataToServer(args[0])
+				return oldWrite(...args)
+			}
+			socket.on('end', () => {
+				setTimeout(() => {
+					end()
+				})
+			})
+			socket.logWorker = log
+			socket.onChannelRegister = onChannelRegister
+		} else {
+			console.warn('WARN: No connection ID provided for connection')
+		}
+
 		let start = Date.now()
 		// Handle the 'timeout' event
 		socket.on('timeout', function () {
@@ -256,6 +283,15 @@ module.exports = function (options, connectionListener) {
 				ws.send('pong:' + data.slice('ping:'.length), () => {});
 				return
 			}
+			if (typeof data === 'string' && data.startsWith('custom-channel-register:')) {
+				try {
+					const parsed = JSON.parse(data.slice('custom-channel-register:'.length))
+					socket.onChannelRegister?.(parsed)
+				} catch (err) {
+					console.log('Error parsing custom-channel-register:', err)
+				}
+				return
+			}
 
 			packetsLastSecond.fromClient++;
 			checkPacketRate();
@@ -267,9 +303,9 @@ module.exports = function (options, connectionListener) {
 					});
 				}, artificialDelay);
 			} else {
-			socket.write(data, 'binary', function () {
-				//myLog('Sent: ', data.toString());
-			});
+				socket.write(data, 'binary', function () {
+					//myLog('Sent: ', data.toString());
+				});
 			}
 		});
 
@@ -283,6 +319,11 @@ module.exports = function (options, connectionListener) {
 					ws.send(chunk, { binary: true }, function (err) {});
 				}, artificialDelay);
 			} else {
+				if (ws.readyState !== WebSocket.OPEN) {
+					// console.log('Wrong readyState!', ws.readyState)
+					socket.logWorker?.('Wrong readyState!', ws.readyState)
+				}
+
 				ws.send(chunk, { binary: true }, function (err) {});
 			}
 		});
@@ -293,6 +334,7 @@ module.exports = function (options, connectionListener) {
 				ws.send('proxy-shutdown:Connection timed out. No packets were sent or received from either side in '+connectionTimeout+'ms.', () => {});
 				reasonSent = true;
 			}
+			socket.logWorker?.('TCP connection timed out');
 		});
 
 		socket.on('error', function (err) {
@@ -301,6 +343,7 @@ module.exports = function (options, connectionListener) {
 				ws.send('proxy-shutdown:'+message, () => {});
 				reasonSent = true;
 			}
+			socket.logWorker?.('TCP connection error: '+err.message);
 		});
 
 		socket.on('close', function () {
@@ -310,10 +353,12 @@ module.exports = function (options, connectionListener) {
 				ws.send('proxy-shutdown:Minecraft server closed the connection.', () => {});
 			}
 			ws.close();
+			socket.logWorker?.('TCP connection closed by remote');
 			delete wsConnections[token]; // Clean up WebSocket connection
 		});
 		ws.on('close', function () {
 			socket.end();
+			socket.logWorker?.('Websocket connection closed');
 			myLog('Websocket connection closed ('+token+')');
 			delete wsConnections[token]; // Clean up WebSocket connection
 		});
