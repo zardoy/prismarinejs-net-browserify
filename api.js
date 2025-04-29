@@ -189,7 +189,8 @@ module.exports = function (options, connectionListener) {
 				req.headers['x-minecraft-version'] ?? '1.21.4',
 				req.headers['x-connection-id'],
 				{
-					userAgent: req.headers['user-agent']
+					userAgent: req.headers['user-agent'],
+					ip: req.ip
 				}
 			)
 

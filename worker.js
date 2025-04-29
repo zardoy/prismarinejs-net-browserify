@@ -118,7 +118,7 @@ function handleCreateConnection(id, version, meta) {
         serverClient,
         duplexToServer,
         packets: [],
-        log: `{"minecraftVersion":"${version}"}\n# Connection id: ${id}. Started at: ${new Date().toISOString()}. User agent: ${meta.userAgent}\n`,
+        log: `{"minecraftVersion":"${version}"}\n# Connection id: ${id}. Started at: ${new Date().toISOString()}. User agent: ${meta.userAgent}. IP: ${meta.ip}\n`,
         get firstClientMessage() {
             return firstClientMessage
         },
