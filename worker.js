@@ -149,7 +149,7 @@ function handlePushFromClient(id, packet) {
     }
 }
 
-const MAX_LOG_SIZE_MB = 1000
+const MAX_LOG_SIZE_MB = 1500
 
 const logPacket = (connection, isServer, { name }, params) => {
     const client = isServer ? connection.serverClient : connection.client;
@@ -215,17 +215,19 @@ async function handleEndConnection(id) {
         const compressed = zlib.gzipSync(connection.log);
         fs.writeFileSync(compressedFile, compressed);
 
-        const LOGS_LIMIT = 20
+        const LOGS_LIMIT = 80
         const files = fs.readdirSync(logsDir);
         if (files.length > LOGS_LIMIT) {
+            // Sort files by birthtime (oldest first) and remove the 3 oldest logs
             const sortedByDate = files.sort((a, b) => {
                 const dateA = fs.statSync(path.join(logsDir, a)).birthtime;
                 const dateB = fs.statSync(path.join(logsDir, b)).birthtime;
                 return dateA.getTime() - dateB.getTime();
             });
-            fs.unlinkSync(path.join(logsDir, sortedByDate[0]));
-            fs.unlinkSync(path.join(logsDir, sortedByDate[1]));
-            fs.unlinkSync(path.join(logsDir, sortedByDate[2]));
+            // Remove the 3 oldest logs
+            for (let i = 0; i < 3; i++) {
+                fs.unlinkSync(path.join(logsDir, sortedByDate[i]));
+            }
         }
 
         // Clean up the connection
