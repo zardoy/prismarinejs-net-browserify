@@ -190,7 +190,8 @@ module.exports = function (options, connectionListener) {
 				req.headers['x-connection-id'],
 				{
 					userAgent: req.headers['user-agent'],
-					ip: req.ip
+					ip: req.ip,
+					targetServer: host + ':' + port
 				}
 			)
 

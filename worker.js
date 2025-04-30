@@ -23,7 +23,7 @@ class CustomDuplex extends Duplex {
     }
 }
 
-/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined, truncated: boolean }>} */
+/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined, truncated: boolean, meta: any }>} */
 const connections = new Map();
 
 parentPort.on('message', (message) => {
@@ -122,7 +122,8 @@ function handleCreateConnection(id, version, meta) {
         get firstClientMessage() {
             return firstClientMessage
         },
-        truncated: false
+        truncated: false,
+        meta
     });
 }
 
@@ -200,7 +201,7 @@ async function handleEndConnection(id) {
         const elapsedSeconds = ((Date.now() - connection.firstClientMessage) / 1000).toFixed(0)
         const uncompressedSizeMb = (connection.log.length / 1024 / 1024).toFixed(2)
 
-        let filename = `${id}-${connection.client.username}-${elapsedSeconds}s-${uncompressedSizeMb}mb`;
+        let filename = `${id}-${connection.client.username}-${elapsedSeconds}s-${uncompressedSizeMb}mb-${connection.meta.targetServer.replace(/:/g, '-')}`;
         if (connection.truncated) {
             filename += '-truncated';
         }
