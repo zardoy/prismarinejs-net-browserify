@@ -23,7 +23,7 @@ class CustomDuplex extends Duplex {
     }
 }
 
-/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined, truncated: boolean, meta: any }>} */
+/** @type {Map<string, { client: Client, serverClient: Client, duplexFromServer: any, duplexToServer: any, packets: {direction: string, data: Buffer}[], log: string, firstClientMessage: number | undefined, truncated: boolean, meta: any, dataSentBytes: number, dataReceivedBytes: number }>} */
 const connections = new Map();
 
 parentPort.on('message', (message) => {
@@ -123,13 +123,16 @@ function handleCreateConnection(id, version, meta) {
             return firstClientMessage
         },
         truncated: false,
-        meta
+        meta,
+        dataSentBytes: 0,
+        dataReceivedBytes: 0,
     });
 }
 
 function handlePushFromServer(id, packet) {
     const connection = connections.get(id);
     if (connection) {
+        connection.dataReceivedBytes += Buffer.from(packet).byteLength;
         connection.duplexFromServer.push(Buffer.from(packet));
         connection.packets.push({
             direction: 'S',
@@ -141,6 +144,7 @@ function handlePushFromServer(id, packet) {
 function handlePushFromClient(id, packet) {
     const connection = connections.get(id);
     if (connection) {
+        connection.dataSentBytes += Buffer.from(packet).byteLength;
         connection.duplexToServer.push(Buffer.from(packet));
 
         connection.packets.push({
@@ -165,7 +169,7 @@ const logPacket = (connection, isServer, { name }, params) => {
 function handleLog(id, message) {
     const connection = connections.get(id);
     if (connection) {
-        connection.log += `# ${message}\n`;
+        connection.log += `# ${new Date().toISOString()} ${message}\n`;
     }
 }
 
@@ -191,6 +195,9 @@ async function handleEndConnection(id) {
     }
 
     try {
+        const formatter = new Intl.NumberFormat('en-US', {})
+        handleLog(id, `Ending connection. Bytes sent: ${formatter.format(connection.dataSentBytes)}. Bytes received: ${formatter.format(connection.dataReceivedBytes)}`);
+
         // End the client connection
         connection.client.end();
 
