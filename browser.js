@@ -409,7 +409,7 @@ Socket.prototype._connectWebSocket = function (token, cb) {
 };
 
 Socket.prototype.handleStringMessage = function (message) {
-	return true
+	return false
 }
 
 Socket.prototype._handleWebsocket = function () {
