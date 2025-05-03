@@ -118,6 +118,9 @@ function Socket(options) {
 
 	// default to *not* allowing half open sockets
 	this.allowHalfOpen = options && options.allowHalfOpen || false;
+
+	// Set default timeout to 10 seconds if not specified
+	this._wsTimeout = options && options.wsTimeout || 10000;
 }
 util.inherits(Socket, stream.Duplex);
 
@@ -412,7 +415,24 @@ Socket.prototype.handleStringMessage = function (message) {
 Socket.prototype._handleWebsocket = function () {
 	var self = this;
 
+	// Add connection timeout
+	let timedOut = false;
+	const timeout = setTimeout(() => {
+		if (!timedOut) {
+			timedOut = true;
+			if (self._ws) {
+				self._ws.close();
+			}
+			const error = `Proxy server is reachable, but the WebSocket connection timed out after ${this._wsTimeout / 1000} seconds. Possible reasons:
+1. Most probably the proxy server (${getProxy().hostname}:${getProxy().port}) is misconfigured and not accepting WebSocket connections.
+2. Your browser or network is blocking WebSocket connections.`;
+			self.emit('error', error);
+		}
+	}, this._wsTimeout);
+
 	this._ws.addEventListener('open', function () {
+		if (timedOut) return;
+		clearTimeout(timeout);
 		//console.log('TCP OK');
 
 		self._connecting = false;
@@ -423,9 +443,11 @@ Socket.prototype._handleWebsocket = function () {
 		self.read(0);
 	});
 	this._ws.addEventListener('error', function (e) {
+		if (timedOut) return;
+		clearTimeout(timeout);
 		// `e` doesn't contain anything useful (https://developer.mozilla.org/en/docs/WebSockets/Writing_WebSocket_client_applications#Connection_errors)
 		console.warn('TCP error', e);
-		self.emit('error', 'An error occured with the WebSocket');
+		self.emit('error', 'An error occurred with the WebSocket connection. Please check your network connection and proxy server status.');
 	});
 	let reading = false
 	this._ws.addEventListener('message', function (e) {
