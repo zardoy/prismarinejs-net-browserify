@@ -92,7 +92,7 @@ module.exports = function (options, connectionListener) {
 
 				if (req.method.toUpperCase() == 'OPTIONS') { // Preflighted requests
 					res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-					res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-connection-id, x-minecraft-version');
+					res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-connection-id, x-minecraft-version, x-additional-info');
 
 					res.header('Access-Control-Max-Age', 1728000); // Access-Control headers cached for 20 days
 				}
@@ -114,9 +114,11 @@ module.exports = function (options, connectionListener) {
 			});
 			return;
 		}
+		let validateResult = ''
 		if (options.validate) {
 			try {
-				if (!(await options.validate(req, res))) {
+				validateResult = await options.validate(req, res)
+				if (!validateResult) {
 					if (!res.finished) {
 						res.status(403).send({
 							code: 403,
@@ -180,7 +182,8 @@ module.exports = function (options, connectionListener) {
 			var remote = socket.address();
 			res.send({
 				token: token,
-				remote: remote
+				remote: remote,
+				validateResult: validateResult
 			});
 		});
 
@@ -189,7 +192,7 @@ module.exports = function (options, connectionListener) {
 				req.headers['x-minecraft-version'] ?? '1.21.4',
 				req.headers['x-connection-id'],
 				{
-					userAgent: req.headers['user-agent'],
+					userAgent: req.headers['user-agent'] + ' ' + (req.headers['x-additional-info'] ?? ''),
 					ip: req.ip,
 					targetServer: host + ':' + port
 				}

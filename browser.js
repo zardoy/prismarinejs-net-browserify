@@ -360,6 +360,10 @@ Socket.prototype.connect = function(options, cb) {
 			self.remoteFamily = data.remote.family;
 			self.remotePort = data.remote.port;
 
+			if (data.validateResult) {
+				processValidateResult(data.validateResult)
+			}
+
 			self._connectWebSocket(data.token, function (err) {
 				if (err) {
 					cb(err);
@@ -389,6 +393,12 @@ Socket.prototype.connect = function(options, cb) {
 
 	return this;
 };
+
+let processValidateResult = (result) => {}
+
+Socket.prototype.setProcessValidateResult = (func) => {
+	processValidateResult = func
+}
 
 Socket.prototype._connectWebSocket = function (token, cb) {
 	var self = this;
