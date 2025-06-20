@@ -210,7 +210,46 @@ module.exports = function (options, connectionListener) {
 		}
 	});
 
+	app.get(urlRoot + '/connect', function (req, res) {
+		try {
+			const startTime = process.hrtime()
+			res.json({
+				code: 200,
+				description: 'A proxy server for Minecraft web clients',
+				time: Date.now(),
+				processingTime: process.hrtime(startTime)[1] / 1000000
+			})
+		} catch (err) {
+			console.error('Error handling connect request:', err)
+		}
+	})
+
 	var wss = expressWs(app, server);
+
+	// Add dedicated WebSocket ping endpoint
+	app.ws(urlRoot + '/ping', function (ws, req) {
+		try {
+			myLog('Ping WebSocket connection opened')
+			if (options.onPing) {
+				options.onPing(req)
+			}
+
+			ws.on('message', function (data) {
+				if (typeof data === 'string' && data.startsWith('ping:')) {
+					const startTime = process.hrtime()
+					const pingId = data.slice('ping:'.length)
+					ws.send('pong:' + pingId + ':' + (process.hrtime(startTime)[1] / 1000000), () => { })
+				}
+			})
+
+			// Clean up on connection close
+			ws.on('close', function () {
+				myLog('Ping WebSocket connection closed')
+			})
+		} catch (err) {
+			console.error('Error handling ping WebSocket connection:', err)
+		}
+	});
 
 	app.ws(urlRoot + '/socket', function (/** @type {import('ws').WebSocket} */ws, req) {
 		var token = req.query.token;
