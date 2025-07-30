@@ -295,6 +295,10 @@ module.exports = function (options, connectionListener) {
 				ws.send('pong:' + data.slice('ping:'.length), () => {});
 				return
 			}
+			if (typeof data === 'string' && data.startsWith('proxy-log:')) {
+				myLog(`Client Log (${token}): ${data.slice('proxy-log:'.length)}`)
+				return
+			}
 
 			packetsLastSecond.fromClient++;
 			checkPacketRate();
