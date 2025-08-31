@@ -11,7 +11,8 @@ var defaultProxy = {
 	hostname: window.location.hostname,
 	port: window.location.port,
 	path: '/api/vm/net',
-	headers: {}
+	headers: {},
+	artificialDelay: 0
 };
 var proxy = { ...defaultProxy }
 function getProxy() {
@@ -55,6 +56,9 @@ exports.setProxy = function (options) {
 	}
 	if (options.headers) {
 		proxy.headers = options.headers;
+	}
+	if (options.artificialDelay) {
+		proxy.artificialDelay = options.artificialDelay;
 	}
 };
 
@@ -270,7 +274,13 @@ Socket.prototype._write = function (data, encoding, cb) {
 	}
 
 	// Send the data
-	this._ws.send(data);
+	if (getProxy().artificialDelay > 0) {
+		setTimeout(() => {
+			this._ws.send(data);
+		}, getProxy().artificialDelay);
+	} else {
+		this._ws.send(data);
+	}
 
 	process.nextTick(function () {
 		//console.log('[tcp] sent: ', data.toString(), data.length);
@@ -459,6 +469,16 @@ Socket.prototype._handleWebsocket = function () {
 			self.push(buffer);
 		};
 
+		var processBuffer = function (buffer) {
+			if (getProxy().artificialDelay > 0) {
+				setTimeout(() => {
+					gotBuffer(buffer);
+				}, getProxy().artificialDelay);
+			} else {
+				gotBuffer(buffer);
+			}
+		};
+
 		if (typeof contents == 'string') {
 			if (contents.startsWith('pong:')) {
 				self.emit('pong', contents.slice('pong:'.length));
@@ -466,7 +486,7 @@ Socket.prototype._handleWebsocket = function () {
 			}
 			if (self.handleStringMessage(contents)) {
 				var buffer = new Buffer(contents);
-				gotBuffer(buffer);
+				processBuffer(buffer);
 			}
 		} else if (window.Blob && contents instanceof Blob) {
 			var fileReader = new FileReader();
@@ -478,7 +498,7 @@ Socket.prototype._handleWebsocket = function () {
 			fileReader.addEventListener('load', function (e) {
 				var buf = fileReader.result;
 				var arr = new Uint8Array(buf);
-				gotBuffer(new Buffer(arr));
+				processBuffer(new Buffer(arr));
 				resolveReading()
 				reading = false
 			});
