@@ -11,6 +11,7 @@ var defaultProxy = {
 	hostname: window.location.hostname,
 	port: window.location.port,
 	path: '/api/vm/net',
+	token: '',
 	headers: {},
 	artificialDelay: 0
 };
@@ -21,7 +22,7 @@ function getProxy() {
 function getProxyHost() {
 	var host = getProxy().hostname;
 	if (getProxy().port) {
-		host += ':'+getProxy().port;
+		host += ':' + getProxy().port;
 	}
 	return host;
 }
@@ -71,6 +72,19 @@ exports.connect = exports.createConnection = function (/* options, connectListen
 	debug('createConnection', args);
 	var s = new Socket(args[0]);
 	return Socket.prototype.connect.apply(s, args);
+};
+
+exports.logProxy = function (msg) {
+	fetch(`${getProxy().requestProtocol}//${getProxyHost()}${getProxy().path}/log`, {
+		method: "POST",
+		body: JSON.stringify({
+			message: msg,
+			token: getProxy().token
+		}),
+		headers: {
+			"Content-Type": "application/json"
+		}
+	});
 };
 
 function toNumber(x) { return (x = Number(x)) >= 0 ? x : false; }
@@ -155,8 +169,8 @@ Socket.prototype._onTimeout = function () {
 	this.emit('timeout');
 };
 
-Socket.prototype.setNoDelay = function (enable) {};
-Socket.prototype.setKeepAlive = function (setting, msecs) {};
+Socket.prototype.setNoDelay = function (enable) { };
+Socket.prototype.setKeepAlive = function (setting, msecs) { };
 
 Socket.prototype.address = function () {
 	return {
@@ -167,7 +181,7 @@ Socket.prototype.address = function () {
 };
 
 Object.defineProperty(Socket.prototype, 'readyState', {
-	get: function() {
+	get: function () {
 		if (this._connecting) {
 			return 'opening';
 		} else if (this.readable && this.writable) {
@@ -184,9 +198,9 @@ Object.defineProperty(Socket.prototype, 'readyState', {
 
 Socket.prototype.bufferSize = undefined;
 
-Socket.prototype._read = function () {};
+Socket.prototype._read = function () { };
 
-Socket.prototype.end = function(data, encoding) {
+Socket.prototype.end = function (data, encoding) {
 	stream.Duplex.prototype.end.call(this, data, encoding);
 	this.writable = false;
 
@@ -212,7 +226,7 @@ function maybeDestroy(socket) {
 	}
 }
 
-Socket.prototype.destroySoon = function() {
+Socket.prototype.destroySoon = function () {
 	if (this.writable)
 		this.end();
 	if (this._writableState.finished)
@@ -221,7 +235,7 @@ Socket.prototype.destroySoon = function() {
 		this.once('finish', this.destroy);
 };
 
-Socket.prototype.destroy = function(exception) {
+Socket.prototype.destroy = function (exception) {
 	debug('destroy', exception);
 
 	if (this.destroyed) {
@@ -252,7 +266,7 @@ Socket.prototype.bytesWritten = 0;
 
 Socket.prototype._write = function (data, encoding, cb) {
 	var self = this;
-	cb = cb || function () {};
+	cb = cb || function () { };
 
 	// If we are still connecting, then buffer this for later.
 	// The Writable logic will buffer up any more writes while
@@ -260,7 +274,7 @@ Socket.prototype._write = function (data, encoding, cb) {
 	if (this._connecting) {
 		this._pendingData = data;
 		this._pendingEncoding = encoding;
-		this.once('connect', function() {
+		this.once('connect', function () {
 			this._write(data, encoding, cb);
 		});
 		return;
@@ -289,13 +303,13 @@ Socket.prototype._write = function (data, encoding, cb) {
 	});
 };
 
-Socket.prototype.write = function(chunk, encoding, cb) {
+Socket.prototype.write = function (chunk, encoding, cb) {
 	if (!util.isString(chunk) && !util.isBuffer(chunk))
 		throw new TypeError('invalid data');
 	return stream.Duplex.prototype.write.apply(this, arguments);
 };
 
-Socket.prototype.connect = function(options, cb) {
+Socket.prototype.connect = function (options, cb) {
 	var self = this;
 
 	if (!util.isObject(options)) {
@@ -306,7 +320,7 @@ Socket.prototype.connect = function(options, cb) {
 		return Socket.prototype.connect.apply(this, args);
 	}
 
-	cb = cb || function () {};
+	cb = cb || function () { };
 
 	if (this.write !== Socket.prototype.write)
 		this.write = Socket.prototype.write;
@@ -352,7 +366,7 @@ Socket.prototype.connect = function(options, cb) {
 			}
 
 			if (data.error !== undefined) {
-				let errorMessage = 'Cannot open TCP connection ['+res.statusCode+']: '+JSON.stringify(data.error)
+				let errorMessage = 'Cannot open TCP connection [' + res.statusCode + ']: ' + JSON.stringify(data.error)
 				if (res.statusCode === 0) {
 					errorMessage = `Cannot reach the proxy server ${getProxy().hostname}:${getProxy().port}`
 				} else if (res.statusCode === 404) {
@@ -369,6 +383,7 @@ Socket.prototype.connect = function(options, cb) {
 			self.remoteAddress = data.remote.address;
 			self.remoteFamily = data.remote.family;
 			self.remotePort = data.remote.port;
+			getProxy().token = data.token;
 
 			self._connectWebSocket(data.token, function (err) {
 				if (err) {
@@ -410,7 +425,7 @@ Socket.prototype._connectWebSocket = function (token, cb) {
 		return;
 	}
 
-	this._ws = new WebSocket(getProxyOrigin() + getProxy().path + '/socket?token='+token);
+	this._ws = new WebSocket(getProxyOrigin() + getProxy().path + '/socket?token=' + token);
 	this._handleWebsocket();
 
 	if (cb) {
@@ -530,9 +545,9 @@ exports.isIP = function (input) {
 		return 0;
 	}
 };
-exports.isIPv4 = function(input) {
+exports.isIPv4 = function (input) {
 	return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input);
 };
-exports.isIPv6 = function(input) {
+exports.isIPv6 = function (input) {
 	return /^(([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))$/.test(input);
 };
