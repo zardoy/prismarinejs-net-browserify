@@ -240,6 +240,28 @@ module.exports = function (options, connectionListener) {
 		}
 	})
 
+	// A dedicated log endpoint to log messages send by clients if logging is enabled.
+	app.post(urlRoot + '/log', jsonParser, function (req, res) {
+		var message = req.body?.message,
+			token = req.body?.token;
+
+		if (!message || typeof token !== 'string') {
+			res.sendStatus(400)
+			return
+		}
+
+		if (!sockets[token]) {
+			if (token.length === 64) {
+				token = `unknown-${token}`
+			} else {
+				token = "???"
+			}
+		}
+
+		myLog(`Client Log (${token}): ${message}`);
+		res.sendStatus(200);
+	})
+
 	var wss = expressWs(app, server);
 
 	// Add dedicated WebSocket ping endpoint
