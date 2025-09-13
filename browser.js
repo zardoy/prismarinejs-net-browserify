@@ -39,6 +39,15 @@ function getArtificialDelay() {
 	}
 	return delay || 0;
 }
+
+function getMaxArtificialDelay() {
+	const delay = getProxy().artificialDelay;
+	if (Array.isArray(delay) && delay.length === 2) {
+		// Use max value for connection closing operations
+		return delay[1];
+	}
+	return delay || 0;
+}
 exports.setProxy = function (options) {
 	proxy = { ...defaultProxy }
 	options = options || {};
@@ -199,7 +208,14 @@ Socket.prototype.end = function(data, encoding) {
 	this.writable = false;
 
 	if (this._ws) {
-		this._ws.close();
+		const delay = getMaxArtificialDelay();
+		if (delay > 0) {
+			setTimeout(() => {
+				this._ws.close();
+			}, delay);
+		} else {
+			this._ws.close();
+		}
 	}
 
 	// just in case we're waiting for an EOF.
@@ -526,7 +542,14 @@ Socket.prototype._handleWebsocket = function () {
 		if (self.readyState == 'open') {
 			//console.log('TCP closed');
 			await reading
-			self.destroy();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					self.destroy();
+				}, delay);
+			} else {
+				self.destroy();
+			}
 		}
 	});
 };

@@ -47,6 +47,14 @@ module.exports = function (options, connectionListener) {
 		}
 		return artificialDelay || 0;
 	}
+
+	function getMaxArtificialDelay() {
+		if (Array.isArray(artificialDelay) && artificialDelay.length === 2) {
+			// Use max value for connection closing operations
+			return artificialDelay[1];
+		}
+		return artificialDelay || 0;
+	}
 	const maxPacketsPerSecond = options.maxPacketsPerSecond || 0;
 
 	var app = express();
@@ -358,11 +366,25 @@ module.exports = function (options, connectionListener) {
 			if (!reasonSent) {
 				ws.send('proxy-shutdown:Minecraft server closed the connection.', () => {});
 			}
-			ws.close();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					ws.close();
+				}, delay);
+			} else {
+				ws.close();
+			}
 			delete wsConnections[token]; // Clean up WebSocket connection
 		});
 		ws.on('close', function () {
-			socket.end();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					socket.end();
+				}, delay);
+			} else {
+				socket.end();
+			}
 			myLog('Websocket connection closed ('+token+')');
 			delete wsConnections[token]; // Clean up WebSocket connection
 		});
