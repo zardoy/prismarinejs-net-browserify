@@ -31,6 +31,14 @@ function getProxyOrigin() {
 	}
 	return getProxy().protocol + '://' + getProxyHost();
 }
+function getArtificialDelay() {
+	const delay = getProxy().artificialDelay;
+	if (Array.isArray(delay) && delay.length === 2) {
+		// Random delay between min and max values
+		return Math.random() * (delay[1] - delay[0]) + delay[0];
+	}
+	return delay || 0;
+}
 exports.setProxy = function (options) {
 	proxy = { ...defaultProxy }
 	options = options || {};
@@ -57,7 +65,7 @@ exports.setProxy = function (options) {
 	if (options.headers) {
 		proxy.headers = options.headers;
 	}
-	if (options.artificialDelay) {
+	if (options.artificialDelay !== undefined) {
 		proxy.artificialDelay = options.artificialDelay;
 	}
 };
@@ -274,10 +282,11 @@ Socket.prototype._write = function (data, encoding, cb) {
 	}
 
 	// Send the data
-	if (getProxy().artificialDelay > 0) {
+	const delay = getArtificialDelay();
+	if (delay > 0) {
 		setTimeout(() => {
 			this._ws.send(data);
-		}, getProxy().artificialDelay);
+		}, delay);
 	} else {
 		this._ws.send(data);
 	}
@@ -470,10 +479,11 @@ Socket.prototype._handleWebsocket = function () {
 		};
 
 		var processBuffer = function (buffer) {
-			if (getProxy().artificialDelay > 0) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
 				setTimeout(() => {
 					gotBuffer(buffer);
-				}, getProxy().artificialDelay);
+				}, delay);
 			} else {
 				gotBuffer(buffer);
 			}

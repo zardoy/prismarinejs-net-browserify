@@ -39,6 +39,14 @@ module.exports = function (options, connectionListener) {
 		: function() {}
 
 	const artificialDelay = options.artificialDelay || 0;
+
+	function getArtificialDelay() {
+		if (Array.isArray(artificialDelay) && artificialDelay.length === 2) {
+			// Random delay between min and max values
+			return Math.random() * (artificialDelay[1] - artificialDelay[0]) + artificialDelay[0];
+		}
+		return artificialDelay || 0;
+	}
 	const maxPacketsPerSecond = options.maxPacketsPerSecond || 0;
 
 	var app = express();
@@ -299,12 +307,13 @@ module.exports = function (options, connectionListener) {
 			packetsLastSecond.fromClient++;
 			checkPacketRate();
 
-			if (artificialDelay > 0) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
 				setTimeout(() => {
 					socket.write(data, 'binary', function () {
 						//myLog('Sent: ', data.toString());
 					});
-				}, artificialDelay);
+				}, delay);
 			} else {
 			socket.write(data, 'binary', function () {
 				//myLog('Sent: ', data.toString());
@@ -317,10 +326,11 @@ module.exports = function (options, connectionListener) {
 			packetsLastSecond.fromServer++;
 			checkPacketRate();
 
-			if (artificialDelay > 0) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
 				setTimeout(() => {
 					ws.send(chunk, { binary: true }, function (err) {});
-				}, artificialDelay);
+				}, delay);
 			} else {
 				ws.send(chunk, { binary: true }, function (err) {});
 			}
