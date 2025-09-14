@@ -41,6 +41,22 @@ module.exports = function (options, connectionListener) {
 		: function() {}
 
 	const artificialDelay = options.artificialDelay || 0;
+
+	function getArtificialDelay() {
+		if (Array.isArray(artificialDelay) && artificialDelay.length === 2) {
+			// Random delay between min and max values
+			return Math.random() * (artificialDelay[1] - artificialDelay[0]) + artificialDelay[0];
+		}
+		return artificialDelay || 0;
+	}
+
+	function getMaxArtificialDelay() {
+		if (Array.isArray(artificialDelay) && artificialDelay.length === 2) {
+			// Use max value for connection closing operations
+			return artificialDelay[1];
+		}
+		return artificialDelay || 0;
+	}
 	const maxPacketsPerSecond = options.maxPacketsPerSecond || 0;
 
 	var app = express();
@@ -343,12 +359,13 @@ module.exports = function (options, connectionListener) {
 			packetsLastSecond.fromClient++;
 			checkPacketRate();
 
-			if (artificialDelay > 0) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
 				setTimeout(() => {
 					socket.write(data, 'binary', function () {
 						//myLog('Sent: ', data.toString());
 					});
-				}, artificialDelay);
+				}, delay);
 			} else {
 				socket.write(data, 'binary', function () {
 					//myLog('Sent: ', data.toString());
@@ -361,10 +378,11 @@ module.exports = function (options, connectionListener) {
 			packetsLastSecond.fromServer++;
 			checkPacketRate();
 
-			if (artificialDelay > 0) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
 				setTimeout(() => {
 					ws.send(chunk, { binary: true }, function (err) {});
-				}, artificialDelay);
+				}, delay);
 			} else {
 				if (ws.readyState !== 1) {
 					// console.log('Wrong readyState!', ws.readyState)
@@ -399,12 +417,26 @@ module.exports = function (options, connectionListener) {
 			if (!reasonSent) {
 				ws.send('proxy-shutdown:Minecraft server closed the connection.', () => {});
 			}
-			ws.close();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					ws.close();
+				}, delay);
+			} else {
+				ws.close();
+			}
 			socket.logWorker?.('TCP connection closed by remote');
 			delete wsConnections[token]; // Clean up WebSocket connection
 		});
 		ws.on('close', function () {
-			socket.end();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					socket.end();
+				}, delay);
+			} else {
+				socket.end();
+			}
 			socket.logWorker?.('Websocket connection closed');
 			myLog('Websocket connection closed ('+token+')');
 			delete wsConnections[token]; // Clean up WebSocket connection

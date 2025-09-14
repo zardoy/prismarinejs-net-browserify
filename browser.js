@@ -11,7 +11,8 @@ var defaultProxy = {
 	hostname: window.location.hostname,
 	port: window.location.port,
 	path: '/api/vm/net',
-	headers: {}
+	headers: {},
+	artificialDelay: 0
 };
 var proxy = { ...defaultProxy }
 function getProxy() {
@@ -29,6 +30,23 @@ function getProxyOrigin() {
 		proxy.protocol = getProxy().requestProtocol === 'https:' ? 'wss' : 'ws'
 	}
 	return getProxy().protocol + '://' + getProxyHost();
+}
+function getArtificialDelay() {
+	const delay = getProxy().artificialDelay;
+	if (Array.isArray(delay) && delay.length === 2) {
+		// Random delay between min and max values
+		return Math.random() * (delay[1] - delay[0]) + delay[0];
+	}
+	return delay || 0;
+}
+
+function getMaxArtificialDelay() {
+	const delay = getProxy().artificialDelay;
+	if (Array.isArray(delay) && delay.length === 2) {
+		// Use max value for connection closing operations
+		return delay[1];
+	}
+	return delay || 0;
 }
 exports.setProxy = function (options) {
 	proxy = { ...defaultProxy }
@@ -55,6 +73,9 @@ exports.setProxy = function (options) {
 	}
 	if (options.headers) {
 		proxy.headers = options.headers;
+	}
+	if (options.artificialDelay !== undefined) {
+		proxy.artificialDelay = options.artificialDelay;
 	}
 };
 
@@ -187,7 +208,14 @@ Socket.prototype.end = function(data, encoding) {
 	this.writable = false;
 
 	if (this._ws) {
-		this._ws.close();
+		const delay = getMaxArtificialDelay();
+		if (delay > 0) {
+			setTimeout(() => {
+				this._ws.close();
+			}, delay);
+		} else {
+			this._ws.close();
+		}
 	}
 
 	// just in case we're waiting for an EOF.
@@ -270,7 +298,14 @@ Socket.prototype._write = function (data, encoding, cb) {
 	}
 
 	// Send the data
-	this._ws.send(data);
+	const delay = getArtificialDelay();
+	if (delay > 0) {
+		setTimeout(() => {
+			this._ws.send(data);
+		}, delay);
+	} else {
+		this._ws.send(data);
+	}
 
 	process.nextTick(function () {
 		//console.log('[tcp] sent: ', data.toString(), data.length);
@@ -469,6 +504,17 @@ Socket.prototype._handleWebsocket = function () {
 			self.push(buffer);
 		};
 
+		var processBuffer = function (buffer) {
+			const delay = getArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					gotBuffer(buffer);
+				}, delay);
+			} else {
+				gotBuffer(buffer);
+			}
+		};
+
 		if (typeof contents == 'string') {
 			if (contents.startsWith('pong:')) {
 				self.emit('pong', contents.slice('pong:'.length));
@@ -476,7 +522,7 @@ Socket.prototype._handleWebsocket = function () {
 			}
 			if (self.handleStringMessage(contents)) {
 				var buffer = new Buffer(contents);
-				gotBuffer(buffer);
+				processBuffer(buffer);
 			}
 		} else if (window.Blob && contents instanceof Blob) {
 			var fileReader = new FileReader();
@@ -488,7 +534,7 @@ Socket.prototype._handleWebsocket = function () {
 			fileReader.addEventListener('load', function (e) {
 				var buf = fileReader.result;
 				var arr = new Uint8Array(buf);
-				gotBuffer(new Buffer(arr));
+				processBuffer(new Buffer(arr));
 				resolveReading()
 				reading = false
 			});
@@ -506,7 +552,14 @@ Socket.prototype._handleWebsocket = function () {
 		if (self.readyState == 'open') {
 			//console.log('TCP closed');
 			await reading
-			self.destroy();
+			const delay = getMaxArtificialDelay();
+			if (delay > 0) {
+				setTimeout(() => {
+					self.destroy();
+				}, delay);
+			} else {
+				self.destroy();
+			}
 		}
 	});
 };
