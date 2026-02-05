@@ -9,7 +9,7 @@ var defaultProxy = {
 	protocol: (window.location.protocol == 'https:') ? 'wss' : 'ws',
 	requestProtocol: '',
 	hostname: window.location.hostname,
-	port: window.location.port,
+	port: '',
 	path: '/api/vm/net',
 	headers: {},
 	artificialDelay: 0
@@ -66,7 +66,8 @@ exports.setProxy = function (options) {
 		proxy.hostname = hostname;
 	}
 	if (options.port) {
-		proxy.port = options.port;
+		const url = new URL('http://' + hostname);
+		proxy.port = url.port;
 	}
 	if (options.path) {
 		proxy.path = options.path;
