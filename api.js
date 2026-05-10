@@ -108,7 +108,7 @@ module.exports = function (options, connectionListener) {
 
 				if (req.method.toUpperCase() == 'OPTIONS') { // Preflighted requests
 					res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-					res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-connection-id, x-minecraft-version, x-additional-info');
+					res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-connection-id, x-minecraft-version, x-additional-info, x-user-id');
 
 					res.header('Access-Control-Max-Age', 1728000); // Access-Control headers cached for 20 days
 				}
@@ -120,8 +120,10 @@ module.exports = function (options, connectionListener) {
 	const socketConnectTimeout = options.connectTimeout ?? options.timeout ?? 5000
 	const connectionTimeout = options.connectionTimeout ?? options.timeout ?? 5000
 	app.post(urlRoot + '/connect', jsonParser, async function (req, res) {
-		var host = req.body.host,
-			port = req.body.port;
+		var requestedHost = req.body.host,
+			requestedPort = req.body.port;
+		var host = requestedHost,
+			port = requestedPort;
 
 		if (!host || !port) {
 			res.status(400).send({
@@ -154,6 +156,9 @@ module.exports = function (options, connectionListener) {
 				return;
 			}
 		}
+
+		host = req.body.host
+		port = req.body.port
 
 		if (options.to) {
 			if (!checkTo(options.to, { host: host, port: port })) {
@@ -257,6 +262,13 @@ module.exports = function (options, connectionListener) {
 			});
 		});
 		if (connectionListener) {
+			socket.__mcProxyRouting = {
+				userId: (req.headers['x-user-id'] || '').trim(),
+				requestedHost,
+				requestedPort,
+				chosenHost: host,
+				chosenPort: port,
+			}
 			connectionListener(socket)
 		}
 	});
