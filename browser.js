@@ -391,6 +391,22 @@ Socket.prototype.connect = function(options, cb) {
 				return;
 			}
 
+			if (data.deferTcp) {
+				if (data.validateResult) {
+					processValidateResult(data.validateResult)
+				}
+				self._connecting = false;
+				self.writable = false;
+				self.readable = false;
+				var deferErr = new Error('DEFER_TCP');
+				deferErr.code = 'DEFER_TCP';
+				deferErr.validateResult = data.validateResult;
+				process.nextTick(function () {
+					cb(deferErr);
+				});
+				return;
+			}
+
 			self.remoteAddress = data.remote.address;
 			self.remoteFamily = data.remote.family;
 			self.remotePort = data.remote.port;
@@ -429,10 +445,27 @@ Socket.prototype.connect = function(options, cb) {
 	return this;
 };
 
-let processValidateResult = (result) => {}
+var validateCallbacks = []
 
-Socket.prototype.setProcessValidateResult = (func) => {
-	processValidateResult = func
+function processValidateResult(result) {
+	for (var i = 0; i < validateCallbacks.length; i++) {
+		try {
+			validateCallbacks[i](result)
+		} catch (e) {
+			console.error('processValidateResult callback error', e)
+		}
+	}
+}
+
+Socket.prototype.setProcessValidateResult = function (func) {
+	validateCallbacks = [func]
+}
+
+Socket.prototype.addProcessValidateResult = function (func) {
+	validateCallbacks.push(func)
+	return function () {
+		validateCallbacks = validateCallbacks.filter(function (f) { return f !== func })
+	}
 }
 
 Socket.prototype._connectWebSocket = function (token, cb) {

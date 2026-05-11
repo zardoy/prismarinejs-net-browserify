@@ -157,6 +157,14 @@ module.exports = function (options, connectionListener) {
 			}
 		}
 
+		if (validateResult && typeof validateResult === 'object' && validateResult.deferTcpConnection && req.headers['x-connection-id']) {
+			res.json({
+				deferTcp: true,
+				validateResult: validateResult,
+			})
+			return
+		}
+
 		host = req.body.host
 		port = req.body.port
 
